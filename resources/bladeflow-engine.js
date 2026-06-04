@@ -9,6 +9,93 @@
     var prefetchTimer = null;
     var prefetchPromises = {};
 
+    var progressBar = null;
+    var progressInterval = null;
+    var progressValue = 0;
+
+    function injectStyles() {
+        if (document.getElementById('bladeflow-progress-styles')) return;
+        var style = document.createElement('style');
+        style.id = 'bladeflow-progress-styles';
+        style.textContent =
+            '#bladeflow-progress-bar {' +
+            '    position: fixed;' +
+            '    top: 0;' +
+            '    left: 0;' +
+            '    height: 3px;' +
+            '    background: linear-gradient(to right, #4f46e5, #06b6d4);' +
+            '    box-shadow: 0 0 10px rgba(6, 182, 212, 0.5), 0 0 5px rgba(79, 70, 229, 0.5);' +
+            '    z-index: 999999;' +
+            '    width: 0%;' +
+            '    opacity: 0;' +
+            '    transition: width 0.2s ease, opacity 0.4s ease;' +
+            '    pointer-events: none;' +
+            '}';
+        document.head.appendChild(style);
+    }
+
+    function dispatch(name, detail) {
+        var event = new CustomEvent(name, { detail: detail, bubbles: true, cancelable: true });
+        document.dispatchEvent(event);
+    }
+
+    function startProgress() {
+        if (contentEl.getAttribute('data-bladeflow-progress') === 'false') {
+            return;
+        }
+        injectStyles();
+        if (!progressBar) {
+            progressBar = document.createElement('div');
+            progressBar.id = 'bladeflow-progress-bar';
+            document.body.appendChild(progressBar);
+        }
+        progressBar.style.width = '0%';
+        progressBar.style.opacity = '1';
+        progressValue = 0;
+        clearInterval(progressInterval);
+        progressInterval = setInterval(function () {
+            if (progressValue < 30) {
+                progressValue += 10;
+            } else if (progressValue < 60) {
+                progressValue += 5;
+            } else if (progressValue < 90) {
+                progressValue += 1;
+            }
+            if (progressBar) {
+                progressBar.style.width = progressValue + '%';
+            }
+        }, 150);
+    }
+
+    function finishProgress() {
+        clearInterval(progressInterval);
+        if (progressBar) {
+            progressBar.style.width = '100%';
+            setTimeout(function () {
+                if (progressBar) {
+                    progressBar.style.opacity = '0';
+                    setTimeout(function () {
+                        if (progressBar && progressBar.style.opacity === '0') {
+                            progressBar.style.width = '0%';
+                        }
+                    }, 400);
+                }
+            }, 200);
+        }
+    }
+
+    function failProgress() {
+        clearInterval(progressInterval);
+        if (progressBar) {
+            progressBar.style.opacity = '0';
+            setTimeout(function () {
+                if (progressBar && progressBar.style.opacity === '0') {
+                    progressBar.style.width = '0%';
+                }
+            }, 400);
+        }
+    }
+
     function normalizePath(pathname) {
         if (!pathname) return '/';
         if (pathname.length > 1 && pathname.endsWith('/')) return pathname.slice(0, -1);
@@ -80,6 +167,10 @@
         var shouldScroll = options.scroll !== false;
         if (navigating) return;
         navigating = true;
+
+        dispatch('bladeflow:start', { url: url });
+        startProgress();
+
         if (requestController) requestController.abort();
         requestController = new AbortController();
         try {
@@ -97,12 +188,19 @@
                 });
                 var contentType = response.headers.get('content-type') || '';
                 if (!response.ok || contentType.indexOf('application/json') === -1) {
+                    finishProgress();
                     window.location.href = url; return;
                 }
                 payload = await response.json();
             }
-            if (payload.redirect) { window.location.href = payload.redirect; return; }
-            if (!payload.content || !payload.content.trim()) { window.location.href = url; return; }
+            if (payload.redirect) {
+                finishProgress();
+                window.location.href = payload.redirect; return;
+            }
+            if (!payload.content || !payload.content.trim()) {
+                finishProgress();
+                window.location.href = url; return;
+            }
             applyStyles(payload.style || '');
             contentEl.innerHTML = payload.content;
             applyScripts(payload.script || '');
@@ -110,8 +208,17 @@
             if (shouldPush) history.pushState({ url: url }, '', url);
             if (shouldScroll) window.scrollTo({ top: 0, behavior: 'auto' });
             updateActiveNav();
+
+            dispatch('bladeflow:finish', { url: url });
+            finishProgress();
         } catch (error) {
-            if (error.name !== 'AbortError') window.location.href = url;
+            if (error.name !== 'AbortError') {
+                dispatch('bladeflow:error', { url: url, error: error });
+                failProgress();
+                window.location.href = url;
+            } else {
+                failProgress();
+            }
         } finally {
             navigating = false;
         }

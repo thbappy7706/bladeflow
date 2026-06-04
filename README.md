@@ -164,6 +164,49 @@ public function home()
 
 ---
 
+## Progress Indicator & Lifecycle Events
+
+BladeFlow includes a built-in, zero-dependency top progress bar loader with a modern Indigo-to-Cyan gradient and glow effect that runs automatically during SPA transitions.
+
+### Disabling the Default Loader
+
+If you want to disable the default top-bar loader, add `data-bladeflow-progress="false"` to your layout's content wrapper element containing `@bladeflowContent`:
+
+```blade
+<main @bladeflowContent data-bladeflow-progress="false">
+    @yield('content')
+</main>
+```
+
+### Custom Lifecycle Events
+
+You can hook into BladeFlow's lifecycle events to build custom loading transitions, trackers, or UI animations:
+
+- **`bladeflow:start`**: Fired when a page transition begins (contains `{ url }` in `event.detail`).
+- **`bladeflow:finish`**: Fired after the content, scripts, and styles have finished updating (contains `{ url }` in `event.detail`).
+- **`bladeflow:error`**: Fired when a fetch request fails, right before falling back to full-page reload (contains `{ url, error }` in `event.detail`).
+
+#### Example: Custom Loading Spinner / Overlay
+
+```javascript
+document.addEventListener('bladeflow:start', function (event) {
+    console.log('Navigating to:', event.detail.url);
+    // Show your custom loading overlay
+});
+
+document.addEventListener('bladeflow:finish', function (event) {
+    console.log('Successfully navigated to:', event.detail.url);
+    // Hide your custom loading overlay
+});
+
+document.addEventListener('bladeflow:error', function (event) {
+    console.error('Failed to load page:', event.detail.url, event.detail.error);
+    // Hide loader
+});
+```
+
+---
+
 ## Requirements
 
 - PHP 8.1+
