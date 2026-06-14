@@ -5,6 +5,7 @@ By default, every link click in Laravel loads a full new page — HTML, CSS, JS,
 
 Most Laravel SPA solutions force you to either abandon Blade entirely (Inertia) or add jQuery (pjax). This package adds that same speed on top of your existing Blade views — no rewrite, nothing changes except how fast it feels.
 
+
 ---
 
 ## Quick Start
